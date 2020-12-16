@@ -189,7 +189,11 @@
                                                    class="form-control col-12 input-password" id="pinField"
                                                    oncopy="return false" onpaste="return false"
                                                    name="pinField" aria-describedby="PINHelp"
-                                                   placeholder="PIN di conferma">
+                                                   placeholder="PIN di conferma"
+                                                   data-container="body" data-toggle="popover" data-trigger="hover"
+                                                   data-placement="left" data-html="true" title="PIN"
+                                                   data-content="Inserisci il PIN scelto in fase di attivazione dell’account.
+                                                    Il PIN è composto da 6 cifre numeriche.">
                                             <div class="input-group-append password-icon"
                                                  title="Mostra/Nascondi PIN">
                                                 <svg class="password-icon-visible icon icon-sm">
@@ -683,5 +687,10 @@ function enable_autopopulate_fields() {
 }
 </script>
 
+<script>
+    $(function () {
+  $('[data-toggle="popover"]').popover()
+})
+</script>
 {% endblock %}
 

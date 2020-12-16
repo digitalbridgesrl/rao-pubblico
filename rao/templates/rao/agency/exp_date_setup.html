@@ -1,0 +1,142 @@
+{% extends "rao/agency/base.html" %}
+{% load staticfiles %}
+{% block page-content %}
+<main>
+    <div class="container my-4">
+        <div class="row">
+            <div class="float-left mt-2 mb-5">
+                <h3 class="text-center text-primary">Configurazione della scadenza dei documenti</h3>
+            </div>
+        </div>
+            <form action="{% url 'agency:exp_date_setup' token %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+
+                <div class="row mb-4">
+                        <p class="col-lg-6 mx-auto">Utilizza la seguente funzionalità se hai necessità di
+                            prolungare il periodo di verifica della scadenza del documento. <br>
+                            Usa il campo <b>Data Inizio </b> ed il campo <b> Data Fine </b> per impostare un range
+                            di date per cui un documento deve considerarsi valido anche quando la data di scadenza
+                            ricade in quell’intervallo.
+                        </p>
+                </div>
+
+
+                <div class="row  mb-4">
+                    <div class="toggles col-lg-6 mx-auto">
+                        <label for="enableSettingsToggle">
+                            Attiva Periodo di Validità
+                            <input type="checkbox" id="enableSettingsToggle" name="enableSettingsToggle"
+                                   {% if params.rao.validationStartDate or form_exp_date.enableSettingsToggle.value %} checked="checked"
+                                   {% endif %}>
+                            <span class="lever"></span>
+                        </label>
+                    </div>
+                </div>
+                    <div class="it-datepicker-wrapper">
+                        <div class="form-row">
+                            <div class="form-group col-lg-6 mx-auto">
+                                <input class="form-control it-date-datepicker" id="validationStartDate"
+                                       name="validationStartDate" type="text"
+                                       {% if form_exp_date.validationStartDate.value %}
+                                       value="{{ form_exp_date.validationStartDate.value }}"
+                                       {% else %}
+                                       {% if params.rao.validationStartDate %}
+                                       value="{{ params.rao.validationStartDate|date:'d/m/Y' }}"
+                                       {% endif %}
+                                       {% endif %}
+                                       placeholder="Inserisci la data in formato GG/MM/AAAA"
+                                       data-toggle="popover"
+                                       data-trigger="hover"
+                                       data-placement="left"
+                                       title="Data di inizio periodo validità"
+                                       data-content="I documenti scaduti dopo questa data saranno considerati validi."
+                                       {% if not params.rao.validationStartDate and not form_exp_date.enableSettingsToggle.value %} readonly
+                                       {% endif %}
+                                >
+                                <label for="validationStartDate">Data Inizio</label>
+                                <small id="validationStartDateHelp"
+                                       class="form-text text-danger">{{ form_exp_date.validationStartDate.errors }}</small>
+                            </div>
+                        </div>
+                </div>
+                <div class="it-datepicker-wrapper">
+                    <div class="form-row">
+                        <div class="form-group col-lg-6 mx-auto">
+                            <input class="form-control it-date-datepicker" id="validationEndDate"
+                                   name='validationEndDate' type="text"
+                                   {% if form_exp_date.validationEndDate.value %}
+                                   value="{{ form_exp_date.validationEndDate.value }}"{% else %}
+                                   {% if params.rao.validationEndDate %}
+                                   value="{{ params.rao.validationEndDate|date:'d/m/Y' }}"
+                                   {% endif %}
+                                   {% endif %}
+                                   placeholder="Inserisci la data in formato GG/MM/AAAA"
+                                   data-toggle="popover"
+                                   data-trigger="hover"
+                                   data-placement="left"
+                                   title="Data di fine periodo validità"
+                                   data-content="I documenti scaduti prima di questa data saranno considerati validi."
+                                   {% if not params.rao.validationEndDate and not form_exp_date.enableSettingsToggle.value %} readonly
+                                   {% endif %}>
+                            <label for="validationEndDate">Data Fine</label>
+                            <small id="validationEndDateHelp"
+                                   class="form-text text-danger">{{ form_exp_date.validationEndDate.errors }}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row justify-content-center mt-4">
+                    <input type="submit" class="btn btn-primary col-6" title="Save" name="Save" value="Salva">
+                </div>
+            </form>
+    </div>
+</main>
+{% endblock %}
+
+{% block bl_javascripts %}
+<script>
+
+$(function () {
+  $('[data-toggle="popover"]').popover()
+})
+
+$(document).ready(function() {
+    $('.it-date-datepicker').datepicker({
+      inputFormat: ["dd/MM/yyyy"],
+      outputFormat: 'dd/MM/yyyy',
+    });
+
+    checkbox_value = document.getElementById('enableSettingsToggle').checked;
+    if(checkbox_value) {
+        $('.it-date-datepicker').datepicker('enable');
+    }
+    else {
+        $('.it-date-datepicker').datepicker('disable');
+    }
+
+
+});
+
+$(function () {
+  $('[data-toggle="popover"]').popover()
+})
+</script>
+
+<script>
+$('input[name=enableSettingsToggle]').change(function(e) {
+
+    start_date = document.getElementById('validationStartDate');
+    end_date = document.getElementById('validationEndDate');
+    if ( $(this).is(':checked')) {
+        $('.it-date-datepicker').datepicker('enable');
+        start_date.readOnly = false;
+        end_date.readOnly = false;
+    } else {
+        $('.it-date-datepicker').datepicker('disable');
+        start_date.readOnly = true;
+        end_date.readOnly = true;
+    }
+});
+
+</script>
+{% endblock %}

@@ -19,7 +19,7 @@ from .classes.choices import CARD_TYPE, ADDRESS_TYPE, CHOICE_SEX, ISSUER_TYPE, g
 from .classes.regex import regex_cap, regex_cie, regex_cf, regex_date, regex_email, regex_number, \
     regex_name, regex_password, regex_surname, regex_doc, regex_rao_name, regex_issuercode, \
     regex_pwd_email, regex_patente, regex_email_port, regex_pin, regex_dim_pin, regex_id_card_issuer
-from .utils.utils import check_ts, get_certificate, set_client_ip
+from .utils.utils import check_ts, get_certificate, set_client_ip, date_in_validation_period
 from .utils.utils_cert import verify_policy_certificate, check_expiration_certificate, verify_certificate_chain
 
 LOG = logging.getLogger(__name__)
@@ -198,11 +198,35 @@ class ChangePinFileForm(Form):
     uploadCertificate = FileField(required=True,
                                   error_messages={'required': 'Campo obbligatorio!'},
                                   widget=FileInput(
-                                      attrs={'id': 'uploadCertificate'}))
+                                      attrs={'id': 'uploadCertificate',
+                                             'data-container': "body",
+                                             'data-toggle': "popover",
+                                             'data-trigger': "hover",
+                                             'data-placement': "left",
+                                             'data-html': "true",
+                                             'title': "Certificato",
+                                             'data-content': "Assicurati che il certificato fornito da AgID sia codificato"
+                                                             " sotto forma di testo. Il certificato dovrebbe essere"
+                                                             " come nell’esempio.<br>"
+                                                             "<br>-----BEGIN CERTIFICATE-----"
+                                                             "<br>MDA5MTAwMDAw0BAQ0FAAOCAwMDB[...]CBtDBMBkLmdvdigMrTBAw4rw"
+                                                             "<br>-----END CERTIFICATE-----", }))
     uploadPrivateKey = FileField(required=True,
                                  error_messages={'required': 'Campo obbligatorio!'},
                                  widget=FileInput(
-                                     attrs={'id': 'uploadPrivateKey'}))
+                                     attrs={'id': 'uploadPrivateKey',
+                                            'data-container': "body",
+                                            'data-toggle': "popover",
+                                            'data-trigger': "hover",
+                                            'data-placement': "left",
+                                            'data-html': "true",
+                                            'title': "Chiave Privata Certificato",
+                                            'data-content': "Assicurati che la chiave privata del certificato sia codificata"
+                                                            " sotto forma di testo. La chiave privata dovrebbe "
+                                                            "essere come nell’esempio.<br>"
+                                                             "<br>-----BEGIN RSA PRIVATE KEY-----"
+                                                             "<br>MDA5MTAwMDAw0BAQ0FAAOCAwMDB[...]CBtDBMBkLmdvdigMrTBAw4rw"
+                                                             "<br>-----END RSA PRIVATE KEY-----", }))
 
     formPin = None
     cert = None
@@ -661,6 +685,16 @@ class NewIdentityForm(Form):
             raise ValidationError("Numero di documento non valido!")
         return
 
+    def clean_identificationExpirationDate(self):
+        expiration_date = datetime.strptime(self.cleaned_data.get('identificationExpirationDate'), '%d/%m/%Y')
+
+        today = datetime.today()
+
+        if expiration_date < today:
+            if not date_in_validation_period(expiration_date):
+                raise ValidationError("Documento scaduto.")
+        return
+
     issue_date = None
 
     def clean_idCardIssuer(self):
@@ -679,6 +713,18 @@ class NewIdentityForm(Form):
         if self.issue_date <= today:
             return
         raise ValidationError("Data di rilascio non valida.")
+
+    def clean_idCardExpirationDate(self):
+        expiration_date = datetime.strptime(self.cleaned_data.get('idCardExpirationDate'), '%d/%m/%Y')
+        if self.issue_date and expiration_date.date() < self.issue_date:
+            raise ValidationError("La data di scadenza del documento non può precedere la data di emissione.")
+        today = datetime.today()
+
+        if expiration_date < today:
+            if not date_in_validation_period(expiration_date):
+                raise ValidationError("Documento scaduto.")
+        return
+
 
 
 class NewIdentityPinForm(Form):
@@ -944,6 +990,13 @@ class NewIdentityPinForm(Form):
             raise ValidationError("Numero di documento non valido!")
         return
 
+    def clean_identificationExpirationDate(self):
+        expiration_date = datetime.strptime(self.cleaned_data.get('identificationExpirationDate'), '%d/%m/%Y')
+        today = datetime.today()
+        if expiration_date < today:
+            if not date_in_validation_period(expiration_date):
+                raise ValidationError("Documento scaduto.")
+        return
 
     issue_date = None
 
@@ -964,6 +1017,18 @@ class NewIdentityPinForm(Form):
         if self.issue_date <= today:
             return
         raise ValidationError("Data di rilascio non valida.")
+
+    def clean_idCardExpirationDate(self):
+        expiration_date = datetime.strptime(self.cleaned_data.get('idCardExpirationDate'), '%d/%m/%Y')
+
+        if self.issue_date and expiration_date.date() < self.issue_date:
+            raise ValidationError("La data di scadenza del documento non può precedere la data di emissione.")
+        today = datetime.today()
+
+        if expiration_date < today:
+            if not date_in_validation_period(expiration_date):
+                raise ValidationError("Documento scaduto.")
+        return
 
 
 class ErrorSetupForm(Form):
@@ -988,11 +1053,35 @@ class CertSetupForm(Form):
     """
     uploadCertificate = FileField(required=True,
                                   widget=FileInput(
-                                      attrs={'id': 'uploadCertificate'}))
-
+                                      attrs={'id': 'uploadCertificate',
+                                             'data-container': "body",
+                                             'data-toggle': "popover",
+                                             'data-trigger': "hover",
+                                             'data-placement': "left",
+                                             'data-html': "true",
+                                             'title': "Certificato",
+                                             'data-content': "Assicurati che il certificato fornito da AgID sia codificato"
+                                                             " sotto forma di testo. Il certificato dovrebbe essere"
+                                                             " come nell’esempio.<br>"
+                                                             "<br>-----BEGIN CERTIFICATE-----"
+                                                             "<br>MDA5MTAwMDAw0BAQ0FAAOCAwMDB[...]CBtDBMBkLmdvdigMrTBAw4rw"
+                                                             "<br>-----END CERTIFICATE-----", }))
     uploadPrivateKey = FileField(required=True,
                                  widget=FileInput(
-                                     attrs={'id': 'uploadPrivateKey'}))
+                                     attrs={'id': 'uploadPrivateKey',
+                                            'data-container': "body",
+                                            'data-toggle': "popover",
+                                            'data-trigger': "hover",
+                                            'data-placement': "left",
+                                            'data-html': "true",
+                                            'title': "Chiave Privata Certificato",
+                                            'data-content': "Assicurati che la chiave privata del certificato sia codificata"
+                                                            " sotto forma di testo. La chiave privata dovrebbe "
+                                                            "essere come nell’esempio.<br>"
+                                                             "<br>-----BEGIN RSA PRIVATE KEY-----"
+                                                             "<br>MDA5MTAwMDAw0BAQ0FAAOCAwMDB[...]CBtDBMBkLmdvdigMrTBAw4rw"
+                                                             "<br>-----END RSA PRIVATE KEY-----", }))
+
 
     pinField = CharField(widget=PasswordInput(attrs={'id': 'pinField', 'name': 'pinField'}),
                          required=True,
@@ -1107,3 +1196,54 @@ class EmailSetupForm(Form):
             pass
         validHost(host)
         return host
+
+
+class ExpDateSetupForm(Form):
+
+    enableSettingsToggle = CharField(
+        widget=TextInput(attrs={'id': 'enableSettingsToggle', 'name': 'enableSettingsToggle'}),
+        required=False)
+
+    validationStartDate = CharField(
+        widget=TextInput(attrs={'id': 'validationStartDate', 'name': 'validationStartDate'}),
+        required=False,
+        error_messages={'required': 'Campo obbligatorio!'},
+        validators=[regex_date])
+
+    validationEndDate = CharField(
+        widget=TextInput(attrs={'id': 'validationEndDate', 'name': 'validationEndDate'}),
+        required=False,
+        error_messages={'required': 'Campo obbligatorio!'},
+        validators=[regex_date])
+
+    validation_start_date = None
+    validation_end_date = None
+    enable_settings_toggle = None
+
+    def clean_validationStartDate(self):
+        self.validation_start_date = self.cleaned_data.get('validationStartDate')
+        self.enable_settings_toggle = self.cleaned_data.get('enableSettingsToggle')
+        if self.enable_settings_toggle and not self.validation_start_date:
+            raise ValidationError("Campo obbligatorio!")
+        return
+
+    def clean_validationEndDate(self):
+
+        self.validation_end_date = self.cleaned_data.get('validationEndDate')
+
+        if self.enable_settings_toggle and not self.validation_end_date:
+            raise ValidationError("Campo obbligatorio!")
+
+        enable_settings_toggle = self.enable_settings_toggle
+
+        if not enable_settings_toggle:
+            return
+
+        validation_start_date = datetime.strptime(self.validation_start_date, '%d/%m/%Y')
+        validation_end_date = datetime.strptime(self.validation_end_date, '%d/%m/%Y')
+
+
+
+        if validation_end_date < validation_start_date:
+            raise ValidationError("La data iniziale deve precedere la data finale.")
+        return

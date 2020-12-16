@@ -3,15 +3,15 @@
 import datetime
 import json
 import logging
-
-# Core Django imports
 import re
+# Core Django imports
 
 from django.conf import settings
 from django.core import signing
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import reverse
+from django.contrib import messages
 
 # Imports from your apps
 import agency
@@ -20,19 +20,20 @@ from .classes.choices import AlertType, StatusCode, PageRedirect
 from .decorators import login_required, admin_required, operator_required, only_one_admin
 from .forms import LoginForm, NewOperatorForm, NewIdentityForm, \
     ChangePasswordForm, SetupForm, RecoveryForm, ChangePinForm, NewOperatorPinForm, ChangePinFileForm, \
-    NewIdentityPinForm, EmailSetupForm, CertSetupForm, ErrorSetupForm
+    NewIdentityPinForm, EmailSetupForm, CertSetupForm, ExpDateSetupForm, ErrorSetupForm
 from .utils.mail_utils import send_email
-from .utils.utils import check_operator, display_alert, render_to_pdf, page_manager, is_admin, \
-    fix_name_surname, download_pdf, get_certificate, from_utc_to_local, set_client_ip
+from .utils.utils import check_operator, render_to_pdf, page_manager, is_admin, \
+    fix_name_surname, download_pdf, get_certificate, from_utc_to_local, set_client_ip, set_validation_period
 from .utils.utils_api import activate_op_api, update_cert
 from .utils.utils_db import get_all_operator, get_attributes_RAO, update_password_operator, \
     search_filter, create_operator, get_all_idr, create_identity, get_operator_by_username, \
     create_identity_request, get_identification_report, get_verify_mail_by_token, send_recovery_link, \
     create_verify_mail_token, set_is_verified, get_idr_filter_operator, get_status_operator, \
-    delete_identity_request, update_sign_field_operator, update_status_operator, update_emailrao, \
+    delete_identity_request, update_sign_field_operator, update_status_operator, test_emailrao, update_emailrao, \
     update_is_activated_field_operator
 from .utils.utils_setup import configuration_check, init_settings_rao, necessary_data_check, init_user
 from .utils.utils_token import signed_token, create_token_file, delete_token_file
+
 
 LOG = logging.getLogger(__name__)
 
@@ -78,7 +79,6 @@ def login(request):
             return HttpResponseRedirect(reverse('agency:setup'))
 
         request.session["is_authenticated"] = False
-        messages = []
         form = LoginForm()
 
         params = {
@@ -124,11 +124,9 @@ def login(request):
                         error = "Credenziali bloccate. Contattare l'amministratore per reimpostare la password " \
                                 "attraverso l'invio di una nuova mail dalla sezione 'Lista Operatori' "
                         LOG.info("{} - Credenziali bloccate.".format(username), extra=set_client_ip(request))
+                messages.error(request, error)
 
-                messages = display_alert(AlertType.DANGER, error)
-
-        return render(request, settings.TEMPLATE_URL_AGENCY + 'login.html', {'form': form, 'params': params,
-                                                                             'messages': messages})
+        return render(request, settings.TEMPLATE_URL_AGENCY + 'login.html', {'form': form, 'params': params})
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
         params = {
@@ -150,7 +148,6 @@ def recovery_password(request):
     }
     try:
 
-        messages = None
         form = RecoveryForm()
         success = False
         if request.method == 'POST':
@@ -165,25 +162,23 @@ def recovery_password(request):
 
                 if result == StatusCode.OK.value:
                     LOG.info("{} - Mail per cambio password inviata".format(username), extra=set_client_ip(request))
-                    messages = display_alert(AlertType.SUCCESS,
-                                             "È stata inviata una mail di verifica all'indirizzo mail fornito!")
+                    messages.success(request, "È stata inviata una mail di verifica all'indirizzo mail fornito!")
                     success = True
                 elif result == StatusCode.NOT_FOUND.value:
-                    messages = display_alert(AlertType.DANGER, "Utente non presente sul sistema.")
+                    messages.error(request, "Utente non presente sul sistema.")
                     LOG.warning("{} - Utente non trovato".format(username), extra=set_client_ip(request))
                 elif result == StatusCode.ERROR.value:
-                    messages = display_alert(AlertType.DANGER, "Credenziali bloccate. Contattare l'amministratore per "
-                                                               "reimpostare la password attraverso l'invio di una nuova "
-                                                               "mail dalla sezione 'Lista Operatori' ")
+                    messages.error(request, "Credenziali bloccate. Contattare l'amministratore per "
+                                            "reimpostare la password attraverso l'invio di una nuova "
+                                            "mail dalla sezione 'Lista Operatori' ")
                     LOG.warning("{} - Utente disabilitato".format(username), extra=set_client_ip(request))
                 else:
-                    messages = display_alert(AlertType.DANGER, "Si è verificato un errore!")
+                    messages.error(request, "Si è verificato un errore!")
                     LOG.error("{} - Errore durante il recupero password utente".format(username), extra=set_client_ip(request))
 
         return render(request, settings.TEMPLATE_URL_AGENCY + 'recovery_password.html', {'success': success,
                                                                                          'form': form,
-                                                                                         'params': params,
-                                                                                         'messages': messages})
+                                                                                         'params': params})
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
         return render(request, settings.TEMPLATE_URL_AGENCY + 'error.html', {"statusCode": StatusCode.EXC.value,
@@ -243,7 +238,6 @@ def add_operator(request, t):
     :param t: token
     """
     try:
-        messages = None
         admin = get_operator_by_username(request.session['username'])
         params = {
             'rao': get_attributes_RAO(),
@@ -279,18 +273,19 @@ def add_operator(request, t):
                         LOG.info("admin: {}, operator: {} - Operatore creato con successo".format(
                             request.session['username'], request.POST.get('fiscalNumber').upper()),
                             extra=set_client_ip(request))
+                        messages.success(request, "Operatore creato con successo.")
                         return HttpResponseRedirect(reverse('agency:list_operator', kwargs={'t': t, 'page': 1}))
                     elif result == StatusCode.ERROR.value:
-                        messages = display_alert(AlertType.DANGER,
+                        messages.error(request,
                                                  "Si è verificato un problema durante l'inserimento del nuovo operatore."
                                                  " Controlla che non esista un operatore con gli stessi dati!")
                     else:
-                        messages = display_alert(AlertType.DANGER,
+                        messages.error(request,
                                                  "Si è verificato un problema durante l'inserimento del nuovo operatore."
                                                  " Invio della mail non riuscito!")
 
         return render(request, settings.TEMPLATE_URL_AGENCY + 'add_operator.html',
-                      {'params': params, 'token': t, 'form': form, 'messages': messages})
+                      {'params': params, 'token': t, 'form': form})
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
         params = {
@@ -347,7 +342,6 @@ def list_identity(request, page, t):
         'active_operator': get_operator_by_username(request.session['username'])
     }
     try:
-        messages = None
         request.session['identified'] = False
         if 'identity_filter' in request.session:
             if not is_admin(request.session['username']):
@@ -372,7 +366,7 @@ def list_identity(request, page, t):
         params['next_page'] = pages['next']
         params['previous_page'] = pages['previous']
         return render(request, settings.TEMPLATE_URL_AGENCY + 'list_identity.html',
-                      {"params": params, "token": t, "messages": messages})
+                      {"params": params, "token": t})
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
         return render(request, settings.TEMPLATE_URL_AGENCY + 'error.html',
@@ -396,7 +390,6 @@ def add_identity(request, t):
             'is_admin': is_admin(request.session['username']),
             'active_operator': active_operator
         }
-        messages = None
         form = NewIdentityForm()
         if request.method == 'POST':
             if 'identifica' not in request.POST:
@@ -430,7 +423,7 @@ def add_identity(request, t):
                                 request.session['username'], ud.fiscalNumber), extra=set_client_ip(request))
                             return HttpResponseRedirect(reverse('agency:summary_identity', kwargs={'t': t}))
                     else:
-                        messages = display_alert(AlertType.DANGER, "Errore durante inserimento richiesta")
+                        messages.error(request, "Errore durante inserimento richiesta")
             else:
                 params = {
                     'username': request.session['username'],
@@ -439,11 +432,11 @@ def add_identity(request, t):
                     'is_admin': is_admin(request.session['username']),
                     'active_operator': active_operator
                 }
-                messages = display_alert(AlertType.DANGER, "Campi della form vuoti o non validi")
+                messages.error(request, "Campi della form vuoti o non validi")
                 LOG.warning("{} - Campi della form vuoti o non validi".format(
                     request.session['username']), extra=set_client_ip(request))
         return render(request, settings.TEMPLATE_URL_AGENCY + 'add_identity.html',
-                      {'params': params, 'token': t, 'form': form, 'messages': messages})
+                      {'params': params, 'token': t, 'form': form})
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
         params = {
@@ -478,7 +471,7 @@ def summary_identity(request, t):
             return HttpResponseRedirect(reverse('agency:logout_agency'))
 
         if request.session['identified']:
-            messages = display_alert(AlertType.DANGER, "Identificazione già effettuata")
+            messages.error(request, "Identificazione già effettuata")
         else:
             if 'user_detail' in params:
                 identity = json.loads(json.loads(params['user_detail']))
@@ -488,6 +481,8 @@ def summary_identity(request, t):
                                                                               '%d/%m/%Y')
                 identity['identificationExpirationDate'] = datetime.datetime.strptime(
                     identity['identificationExpirationDate'], '%d/%m/%Y')
+
+
                 id_request = create_identity_request(request, identity)
                 pin = params['pin']
                 dict_token = signed_token(identity, request.session['username'], pin)
@@ -536,7 +531,7 @@ def summary_identity(request, t):
                     'date': timestamp.strftime('%d/%m/%Y'),
                     'time': timestamp.strftime('%H:%M')
                 }
-                messages = display_alert(AlertType.SUCCESS, "Identificazione avvenuta con successo!")
+                messages.success(request, "Identificazione avvenuta con successo!")
                 request.session['identified'] = True
 
                 email_status_code = send_email([identity['email']], "SPID - Identificazione presso Sportello Pubblico",
@@ -561,7 +556,7 @@ def summary_identity(request, t):
             else:
                 return HttpResponseRedirect(reverse('agency:list_identity', kwargs={'t': t, 'page': 1}))
         return render(request, settings.TEMPLATE_URL_AGENCY + 'summary_identity.html',
-                      {'params': params, 'token': t, 'messages': messages})
+                      {'params': params, 'token': t})
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
         params = {
@@ -662,13 +657,7 @@ def change_pin(request, t):
     try:
         params_t = signing.loads(t)
         username = params_t['username']
-        if 'alert_type' in params_t and 'alert_message' in params_t:
-            messages = display_alert(AlertType.DANGER, params_t.pop('alert_message')) if params_t.pop('alert_type') == 'danger' \
-                else display_alert(AlertType.SUCCESS, params_t.pop('alert_message'))
-
-        else:
-            messages = []
-
+        messages_dic = None
         error_form = None
         error = "Si è verificato un problema con l'aggiornamento, riprova inserendo i dati corretti."
         if get_operator_by_username(username).signStatus:
@@ -713,17 +702,21 @@ def change_pin(request, t):
                 elif status_code_activate == StatusCode.ERROR.value:
                     if is_admin(username):
                         error_form = ErrorSetupForm()
-                        messages = display_alert(AlertType.DANGER, error, "Verifica dati inseriti",
-                                                 "$('#modal').modal('show');")
+                        messages.error(request, error)
+                        messages_dic = {
+                            'link_message': 'Verifica i dati inseriti',
+                            'link': "$('#modal').modal('show');",
+                        }
                         params['fiscalNumber'] = username
                         params['issuerCode'] = get_attributes_RAO().issuerCode
                     else:
-                        messages = display_alert(AlertType.DANGER, error)
-            if messages.__len__() == 0:
-                messages = display_alert(AlertType.DANGER, error)
+                        messages.error(request, error)
+            else:
+                messages.error(request, error)
+
 
         return render(request, settings.TEMPLATE_URL_AGENCY + 'change_pin.html',
-                      {'form': form, 'error_form': error_form, 'params': params, 'messages': messages, 'token': t})
+                      {'form': form, 'error_form': error_form, 'messages_dic': messages_dic, 'params': params, 'token': t})
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
         params = {
@@ -747,7 +740,6 @@ def change_password(request, t):
 
         params_t = signing.loads(t)
         username = params_t['username']
-        messages = []
         form = ChangePasswordForm()
         params = {
             'rao': get_attributes_RAO(),
@@ -776,7 +768,7 @@ def change_password(request, t):
                         LOG.info("{} - Cambio password avvenuto.".format(username), extra=set_client_ip(request))
                         return HttpResponseRedirect(reverse('agency:change_pin', kwargs={'t': t}))
                     return render(request, settings.TEMPLATE_URL_AGENCY + 'change_password.html',
-                                  {'params': params, 'messages': messages, 'token': t})
+                                  {'params': params, 'token': t})
                 elif 'is_admin' not in params_t:
                     operator = get_operator_by_username(username)
                     result = update_password_operator(username, password, operator.status, request)
@@ -790,11 +782,10 @@ def change_password(request, t):
                         return HttpResponseRedirect(reverse('agency:logout_agency'))
                     elif result == StatusCode.LAST_PWD.value:
                         LOG.warning("{} - Nuova password uguale alla precedente.".format(username), extra=set_client_ip(request))
-                        messages = display_alert(AlertType.DANGER,
-                                                 "La nuova password inserita corrisponde a quella precendente!")
+                        messages.error(request, "La nuova password inserita corrisponde a quella precendente!")
                     else:
                         error = "Si è verificato un problema con l'aggiornamento della password, riprova."
-                        messages = display_alert(AlertType.DANGER, error)
+                        messages.error(request, error)
                 elif 'is_admin' in params_t and configuration_check():
                     update_status_operator(username, True)
                     LOG.info("{} - Cambio password avvenuto.".format(username), extra=set_client_ip(request))
@@ -804,11 +795,11 @@ def change_password(request, t):
             else:
                 LOG.warning("{} - Password non valida.".format(username), extra=set_client_ip(request))
                 error = "Si è verificato un problema con l'aggiornamento della password, riprova."
-                messages = display_alert(AlertType.DANGER, error)
+                messages.error(request, error)
 
 
         return render(request, settings.TEMPLATE_URL_AGENCY + 'change_password.html',
-                      {'form': form, 'params': params, 'messages': messages, 'token': t})
+                      {'form': form, 'params': params, 'token': t})
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
         params = {
@@ -822,68 +813,163 @@ def change_password(request, t):
 @only_one_admin
 @login_required
 @admin_required
-def admin_setup(request, t):
+def cert_setup(request, t):
     """
-    Pagina impostazioni per l'aggiornamento del certificato/config. SMTP
-    :param request: request
-    :param t: token
+
+    :param request:
+    :param t:
+    :return:
     """
     try:
-        form_email = EmailSetupForm()
         form_cert = CertSetupForm()
-        messages = None
         active_operator = get_operator_by_username(request.session['username'])
         params = {
             'rao': get_attributes_RAO(),
             'is_admin': is_admin(request.session['username']),
             'active_operator': active_operator
         }
-
         request.session["is_authenticated"] = True
         if request.POST:
-            if 'update_cert' in request.POST:
-                form_cert = CertSetupForm(request.POST, request.FILES)
-                if form_cert.is_valid():
-                    certificate = get_certificate(request.FILES['uploadPrivateKey']) + "\n" + get_certificate(request.FILES['uploadCertificate'])
-                    status_code = update_cert(request.POST['pinField'], request.session['username'], certificate)
-                    if status_code != StatusCode.OK.value:
-                        messages = display_alert(AlertType.DANGER,
-                                                 "Si è verificato un errore durante l'aggiornamento dei dati.")
-                        return render(request, settings.TEMPLATE_URL_AGENCY + 'setup.html',
-                                      {'form_email': form_email, 'messages': messages, 'params': params, 'token': t})
 
-                    return HttpResponseRedirect(reverse('agency:list_identity', kwargs={'t': t, 'page': 1}))
-            else:
+            form_cert = CertSetupForm(request.POST, request.FILES)
+            if form_cert.is_valid():
+                certificate = get_certificate(request.FILES['uploadPrivateKey']) + "\n" + get_certificate(
+                    request.FILES['uploadCertificate'])
+                status_code = update_cert(request.POST['pinField'], request.session['username'], certificate)
+                if status_code != StatusCode.OK.value:
+                    messages.error(request, "Si è verificato un errore durante l'aggiornamento dei dati.")
+                    return render(request, settings.TEMPLATE_URL_AGENCY + 'cert_setup.html',
+                                  { 'params': params, 'token': t})
 
-                form_email = EmailSetupForm(request.POST)
+                return HttpResponseRedirect(reverse('agency:list_identity', kwargs={'t': t, 'page': 1}))
 
-                if form_email.is_valid():
-                    rao_email = form_email.cleaned_data['emailRAOField']
-                    rao_host = form_email.cleaned_data['hostField']
-                    rao_pwd = form_email.cleaned_data['pwdRAOField']
-                    rao_email_crypto_type = form_email.cleaned_data['cryptoMailField']
-                    rao_email_port = form_email.cleaned_data['emailPortField']
-                    smtp_mail_from_field = form_email.cleaned_data['smtpMailFromField']
-                    is_updated = update_emailrao(active_operator, get_attributes_RAO().name, rao_email, rao_host, rao_pwd,
-                                                 rao_email_crypto_type, rao_email_port, smtp_mail_from_field)
-                    if not is_updated:
-                        LOG.warning("{}, {} - Configurazione SMTP non riuscita.".format(agency.utils.utils_db.get_attributes_RAO().issuerCode,
-                                                                                        request.session['username']), extra=set_client_ip(request))
-                        messages = display_alert(AlertType.DANGER,
-                                                 "Si è verificato un errore durante l'aggiornamento dei dati.")
-                        return render(request, settings.TEMPLATE_URL_AGENCY + 'setup.html',
-                                      {'form_email': form_email, 'messages': messages, 'params': params, 'token': t})
-                    LOG.info("{}, {} - Configurazione SMTP modificata.".format(agency.utils.utils_db.get_attributes_RAO().issuerCode,
-                                                                               request.session['username']), extra=set_client_ip(request))
-                    return HttpResponseRedirect(reverse('agency:list_identity', kwargs={'t': t, 'page': 1}))
-
-        return render(request, settings.TEMPLATE_URL_AGENCY + 'setup.html',
-                      {'form_email': form_email, 'form_cert': form_cert, 'messages': messages, 'params': params,
-                       'token': t})
+        return render(request, settings.TEMPLATE_URL_AGENCY + 'cert_setup.html',
+                      {'form_cert': form_cert, 'params': params, 'token': t})
 
     except Exception as e:
         LOG.error("{}, {} - Exception: {}".format(agency.utils.utils_db.get_attributes_RAO().issuerCode,
-                                                  request.session['username'],str(e)), extra=set_client_ip(request))
+                                                  request.session['username'], str(e)), extra=set_client_ip(request))
+        return render(request, settings.TEMPLATE_URL_AGENCY + 'error.html',
+                      {"statusCode": StatusCode.EXC.value, "message": "Errore durante l'aggiornamento dei dati"})
+
+
+@only_one_admin
+@login_required
+@admin_required
+def smtp_setup(request, t):
+    """
+    Pagina per la ri-configurazione del server di posta (SMTP)
+    :param request:
+    :param t:
+    :return:
+    """
+    try:
+        form_email = EmailSetupForm()
+        active_operator = get_operator_by_username(request.session['username'])
+        params = {
+            'rao': get_attributes_RAO(),
+            'is_admin': is_admin(request.session['username']),
+            'active_operator': active_operator
+        }
+        request.session["is_authenticated"] = True
+        if request.POST:
+            form_email = EmailSetupForm(request.POST)
+
+            if form_email.is_valid():
+                rao_email = form_email.cleaned_data['emailRAOField']
+                rao_host = form_email.cleaned_data['hostField']
+                rao_pwd = form_email.cleaned_data['pwdRAOField']
+                rao_email_crypto_type = form_email.cleaned_data['cryptoMailField']
+                rao_email_port = form_email.cleaned_data['emailPortField']
+                smtp_mail_from_field = form_email.cleaned_data['smtpMailFromField']
+                if 'test' in request.POST:
+                    config_is_ok = test_emailrao(active_operator, get_attributes_RAO().name, rao_email, rao_host, rao_pwd,
+                                                 rao_email_crypto_type, rao_email_port, smtp_mail_from_field)
+                    if config_is_ok:
+                        messages.info(request,"La configurazione scelta ha inviato correttamente l'email di prova.")
+                    else:
+                        messages.error(request, "Configurazione SMTP errata.")
+
+                    return render(request, settings.TEMPLATE_URL_AGENCY + 'smtp_setup.html',
+                                  {'form_email': form_email, 'params': params, 'token': t})
+                else:
+                    is_updated = update_emailrao(active_operator, get_attributes_RAO().name, rao_email, rao_host, rao_pwd,
+                                                 rao_email_crypto_type, rao_email_port, smtp_mail_from_field)
+                    if not is_updated:
+                        LOG.warning("{}, {} - Configurazione SMTP non riuscita.".format(
+                            agency.utils.utils_db.get_attributes_RAO().issuerCode,
+                            request.session['username']), extra=set_client_ip(request))
+                        messages.error(request, "Si è verificato un errore durante l'aggiornamento dei dati.")
+                        return render(request, settings.TEMPLATE_URL_AGENCY + 'smtp_setup.html',
+                                      {'form_email': form_email, 'params': params, 'token': t})
+                    LOG.info(
+                        "{}, {} - Configurazione SMTP modificata.".format(agency.utils.utils_db.get_attributes_RAO().issuerCode,
+                                                                          request.session['username']),
+                        extra=set_client_ip(request))
+                    return HttpResponseRedirect(reverse('agency:list_identity', kwargs={'t': t, 'page': 1}))
+
+        return render(request, settings.TEMPLATE_URL_AGENCY + 'smtp_setup.html',
+                      {'form_email': form_email, 'params': params, 'token': t})
+
+    except Exception as e:
+        LOG.error("{}, {} - Exception: {}".format(agency.utils.utils_db.get_attributes_RAO().issuerCode,
+                                                  request.session['username'], str(e)), extra=set_client_ip(request))
+        return render(request, settings.TEMPLATE_URL_AGENCY + 'error.html',
+                      {"statusCode": StatusCode.EXC.value, "message": "Errore durante l'aggiornamento dei dati"})
+
+
+@only_one_admin
+@login_required
+@admin_required
+def exp_date_setup(request, t):
+    """
+    Pagina per la configurazione della scadenza dei documenti.
+    :param request: request
+    :param t: token
+    :return:
+    """
+
+    try:
+        active_operator = get_operator_by_username(request.session['username'])
+
+        form_exp_date = ExpDateSetupForm()
+
+        params = {
+            'rao': get_attributes_RAO(),
+            'is_admin': is_admin(request.session['username']),
+            'active_operator': active_operator
+        }
+
+        if request.POST:
+            form_exp_date = ExpDateSetupForm(request.POST)
+
+            if form_exp_date.is_valid():
+                validation_start_date = request.POST['validationStartDate']
+                validation_end_date = request.POST['validationEndDate']
+                period_flag = True if 'enableSettingsToggle' in request.POST else False
+
+                result = set_validation_period(validation_start_date, validation_end_date, period_flag)
+                if result == StatusCode.OK.value:
+                    messages.success(request, "Periodo di validità dei documenti modificato con successo.")
+                    LOG.info("Periodo di validità dei documenti modificato con successo.")
+                    return HttpResponseRedirect(reverse('agency:list_identity', kwargs={'t': t, 'page': 1}))
+                else:
+
+                    messages.error(request,  "Si è verificato un errore durante l'aggiornamento dei dati.")
+                    LOG.warning("Si è verificato un errore durante l'aggiornamento del periodo di vailidità "
+                                "dei documenti.")
+            else:
+                messages.error(request, "Verificare i dati inseriti.")
+                LOG.warning("Dati inseriti errati.")
+
+            return render(request, settings.TEMPLATE_URL_AGENCY + 'exp_date_setup.html',
+                          {'form_exp_date': form_exp_date,  'params': params, 'token': t})
+
+        return render(request, settings.TEMPLATE_URL_AGENCY + 'exp_date_setup.html',
+                      {'form_exp_date': form_exp_date,  'params': params, 'token': t})
+    except Exception as e:
+        LOG.error("{}, {} - Exception: {}".format(agency.utils.utils_db.get_attributes_RAO().issuerCode,
+                                                  request.session['username'], str(e)), extra=set_client_ip(request))
         return render(request, settings.TEMPLATE_URL_AGENCY + 'error.html',
                       {"statusCode": StatusCode.EXC.value, "message": "Errore durante l'aggiornamento dei dati"})
 
@@ -894,7 +980,6 @@ def initial_setup(request):
     :param request: request
     """
     try:
-        messages = None
         if not configuration_check():
             form = SetupForm(initial=settings.TEST_FORMSETUP_DATA if hasattr(settings, 'TEST_FORMSETUP_DATA') else {})
 
@@ -904,8 +989,7 @@ def initial_setup(request):
                 if form.is_valid():
                     if 'rao_email' in request.session and \
                             request.session['rao_email'] == form.cleaned_data['emailRAOField']:
-
-                        messages = display_alert(AlertType.DANGER, "Email già inviata")
+                        messages.error(request, "Email già inviata.")
                     else:
                         name = fix_name_surname(form.cleaned_data['nameField'])
                         surname = fix_name_surname(form.cleaned_data['surnameField'])
@@ -950,8 +1034,7 @@ def initial_setup(request):
                             if mail_sent == StatusCode.OK.value:
                                 request.session['rao_email'] = rao_email
                                 create_verify_mail_token(email, t)
-                                messages = display_alert(AlertType.SUCCESS,
-                                                         "È stata appena inviata una mail di verifica "
+                                messages.success(request,"È stata appena inviata una mail di verifica "
                                                          "all'indirizzo indicato. Puoi chiudere questa finestra e "
                                                          "proseguire con le istruzioni che troverai nella email inviata.")
                                 LOG.info("IPA: {}, {} - Form compilato con successo.".format(issuer_code,username),
@@ -959,19 +1042,17 @@ def initial_setup(request):
                             else:
                                 LOG.warning("{} - Configurazione SMTP errata.".format(username),
                                             extra=set_client_ip(request))
-                                messages = display_alert(AlertType.DANGER,
-                                                         "Si è verificato un errore durante l'invio della mail "
-                                                         "di verifica, controlla che la configurazione SMTP "
-                                                         "sia corretta.")
+                                messages.error(request,"Si è verificato un errore durante l'invio della mail "
+                                                       "di verifica, controlla che la configurazione SMTP "
+                                                       "sia corretta.")
                         except Exception as e:
                             LOG.error("Exception: {}".format(str(e)), extra=set_client_ip(request))
-                            messages = display_alert(AlertType.DANGER,
-                                                     "Si è verificato un errore durante l'invio della mail di verifica,"
+                            messages.error(request, "Si è verificato un errore durante l'invio della mail di verifica,"
                                                      " controlla che la configurazione SMTP sia corretta.")
                 else:
                     LOG.warning("Errore nella compilazione del form",extra=set_client_ip(request))
             return render(request, settings.TEMPLATE_URL_AGENCY + 'init_setup.html',
-                          {'form': form, 'messages': messages})
+                          {'form': form})
         else:
             return HttpResponseRedirect(reverse('agency:login'))
     except Exception as e:

@@ -46,7 +46,6 @@ POLICY_OID = {
     '1.3.76.16.4.2.4'
 }
 
-
 class CryptoTag(Enum):
     NESSUNA = 'NESSUNA'
     TLS = 'TLS'

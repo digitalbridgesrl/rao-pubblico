@@ -1,0 +1,21 @@
+{% extends "rao/mail/baseMail.html" %}
+
+{% block message_title_first %}
+Gentile <strong>{{ mail_elements.nameUser }} {{ mail_elements.familyNameUser }}</strong>,
+    <br>&egrave; stato richiesto il recupero {{ mail_elements.to_change }}, clicca il link seguente per cambiare
+{{ mail_elements.to_change }} del tuo account:
+{% endblock %}
+
+
+{% block message %}
+<a href="{{ activation_link }}" style="color: #0066cc; text-decoration: none;"> <strong>CLICCA QUI</strong></a>
+{% endblock %}
+
+{% block message_title_second %}
+    Se non hai richiesto tu il recupero {{ mail_elements.to_change }} ti invitiamo a contattare l'amministratore del sistema.
+    Ti ricordiamo che &egrave; possibile utilizzare il link solamente una volta.<br>
+{% endblock %}
+
+
+
+   

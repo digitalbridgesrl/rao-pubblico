@@ -23,10 +23,12 @@ urlpatterns = [
     url(r'^pdf/(?P<t>.+)/$', views.pdf_view, name='pdf'),
     url(r'^download_pdf/(?P<t>.+)/$', views.pdf_download, name='download_pdf'),
     url(r'^setup/$', views.initial_setup, name='setup'),
-    url(r'^admin_setup/(?P<t>.+)/$', views.admin_setup, name='admin_setup'),
+    url(r'^cert_setup/(?P<t>.+)/$', views.cert_setup, name='cert_setup'),
+    url(r'^smtp_setup/(?P<t>.+)/$', views.smtp_setup, name='smtp_setup'),
+    url(r'^exp_date_setup/(?P<t>.+)/$', views.exp_date_setup, name='exp_date_setup'),
     url(r'^recovery_password/$', views.recovery_password, name='recovery_password'),
-
     url(r'^redirect/(?P<t>.+)/$', views.redirect_page, name='redirect'),
+
     url(r'^disable_operator/(?P<page>.+)/(?P<t>.+)/$', utils_db.disable_operator, name='disable_operator'),
     url(r'^reset_pin_operator/(?P<page>.+)/(?P<t>.+)/$', utils_db.reset_pin_operator, name='reset_pin_operator'),
     url(r'^send_mail_psw_operator/(?P<page>.+)/(?P<t>.+)/$', utils_db.send_mail_psw_operator,
@@ -34,6 +36,7 @@ urlpatterns = [
     url(r'^resend_mail_activation/(?P<page>.+)/(?P<t>.+)/$', utils_db.resend_mail_activation,
         name='resend_mail_activation'),
     url(r'^change_setup_value/(?P<t>.+)/$', utils_db.change_setup_value, name='change_setup_value'),
+
     # ajax
     path('ajax_decode_fiscal_number/', utils.decode_fiscal_number, name='ajax_decode_fiscal_number'),
     path('ajax/load/', utils.load_select, name='ajax_load'),

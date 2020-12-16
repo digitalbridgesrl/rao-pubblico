@@ -185,11 +185,11 @@
                 <div class="col-12 pt-md-5 pt-lg-5 pt-4 bd-content">
                     {% block centered_messages %}
                         {% for message in messages %}
-                            <div class="mb-0 alert alert-{{ message.tags }}
+                            <div class="mb-0 alert alert-{{ message.level_tag }}
                                    {% if not forloop.first %}mt-1{% endif %}"
-                                 role="alert">{{ message.body }}
-                                {% if message.link_message and message.link %}
-                                    <a href="#" onclick="{{ message.link }}" class="alert-link">{{ message.link_message }}</a>
+                                 role="alert">{{ message }}
+                                {% if messages_dic %}
+                                    <a href="#" onclick="{{ messages_dic.link }}" class="alert-link">{{ messages_dic.link_message }}</a>
                                 {% endif %}
                             </div>
                         {% endfor %}

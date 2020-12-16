@@ -12,6 +12,7 @@ import traceback
 import jwt
 
 # Core Django imports
+from django.contrib import messages
 from django.core import signing
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponseRedirect
@@ -98,6 +99,7 @@ def disable_operator(request, page, t):
         if operator and operator.idRole.role is not RoleTag.ADMIN.value:
             operator.status = False
             operator.save()
+            messages.success(request, "Operatore disabilitato con successo.")
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=agency.utils.utils.set_client_ip(request))
 
@@ -137,6 +139,8 @@ def reset_pin_operator(request, page, t):
                     t = signing.dumps(params_t)
                     result = send_recovery_link(request.POST.get('username_op'), PageRedirect.CHANGE_PIN.value)
                     if result == StatusCode.OK.value:
+                        messages.success(request, "Reset del PIN avvenuto con successo. Un'email è stata inviata"
+                                                  "all'operatore.")
                         LOG.info("{} - Mail per cambio password inviata".format(username),
                                  extra=agency.utils.utils.set_client_ip(request))
                     elif result == StatusCode.NOT_FOUND.value:
@@ -226,6 +230,7 @@ def send_recovery_link(username, page):
                                            {'activation_link': settings.BASE_URL + str(reverse('agency:redirect',
                                                                                                kwargs={'t': t}))[1:],
                                             'mail_elements': mail_elements})
+
             return email_status_code
         return StatusCode.NOT_FOUND.value
     except Exception as e:
@@ -249,7 +254,7 @@ def update_status_operator(username, status=True):
             return StatusCode.OK.value
     except Exception as e:
         LOG.error("[{}] Si è verificato un errore durante l'update dello stato operatore: {}".format(username, str(e))
-                    , extra=agency.utils.utils.set_client_ip())
+                  , extra=agency.utils.utils.set_client_ip())
         return StatusCode.EXC.value
 
     return StatusCode.ERROR.value
@@ -267,7 +272,7 @@ def get_status_operator(username):
             return operator.status
     except Exception as e:
         LOG.error("[{}] Si è verificato un errore durante il recupero dello status: {}".format(username, str(e)),
-                    extra=agency.utils.utils.set_client_ip())
+                  extra=agency.utils.utils.set_client_ip())
         return False
 
     return False
@@ -314,17 +319,17 @@ def create_operator(admin_username, operator):
     """
     name = agency.utils.utils.fix_name_surname(operator.get('name'))
     surname = agency.utils.utils.fix_name_surname(operator.get('familyName'))
-    fiscalNumber_op = re.sub(r"[\n\t\s]*", "", operator.get('fiscalNumber').upper())
+    fiscal_number_op = re.sub(r"[\n\t\s]*", "", operator.get('fiscalNumber').upper())
     try:
         password = hashlib.sha256('password'.encode()).hexdigest()
-        hash_pass_insert = jwt.encode({'username': fiscalNumber_op,
+        hash_pass_insert = jwt.encode({'username': fiscal_number_op,
                                        'exp': datetime.datetime.utcnow()},
                                       password,
                                       algorithm='HS256')
 
         new_operator = Operator.objects.create(name=name,
                                                surname=surname,
-                                               fiscalNumber=fiscalNumber_op,
+                                               fiscalNumber=fiscal_number_op,
                                                email=re.sub(r"[\n\t\s]*", "", operator.get('email')),
                                                idRole=Role.objects.get(role=RoleTag.OPERATOR.value),
                                                password=hash_pass_insert.decode("UTF-8"),
@@ -332,14 +337,14 @@ def create_operator(admin_username, operator):
                                                isActivated=False)
 
     except Exception as e:
-        LOG.warning("admin: {}, operator: {} - Codice fiscale/email operatore gà presente".format(admin_username,fiscalNumber_op
-                                                                                                  ),
+        LOG.warning("admin: {}, operator: {} - Codice fiscale/email operatore gà presente".format(admin_username,
+                                                                                                  fiscal_number_op),
                     extra=agency.utils.utils.set_client_ip())
         return StatusCode.ERROR.value, None
 
     try:
         status_code, op_temporary_pin = create_api(operator.get('pinField'), admin_username,
-                                                  fiscalNumber_op)
+                                                   fiscal_number_op)
         if status_code != StatusCode.OK.value:
             new_operator.delete()
             return StatusCode.EXC.value, None
@@ -349,8 +354,8 @@ def create_operator(admin_username, operator):
             'name': new_operator.name,
             'familyName': new_operator.surname,
             'email': new_operator.email,
-            'pin': op_temporary_pin,
         }
+
         t = signing.dumps(params)
 
         rao = get_attributes_RAO()
@@ -359,17 +364,16 @@ def create_operator(admin_username, operator):
             'nameUser': new_operator.name,
             'familyNameUser': new_operator.surname,
             'rao_name': rao.name,
-            'pin': op_temporary_pin,
             'is_admin': False
         }
         create_verify_mail_token(new_operator.email, t)
 
-        mail_sended = send_email([new_operator.email], "Attivazione account R.A.O.",
-                                 settings.TEMPLATE_URL_MAIL + 'mail_activation.html',
-                                 {'activation_link': settings.BASE_URL + str(
-                                     reverse('agency:redirect', kwargs={'t': t}))[1:],
-                                  'mail_elements': mail_elements})
-        if not mail_sended:
+        mail_sent = send_email([new_operator.email], "Attivazione account R.A.O.",
+                               settings.TEMPLATE_URL_MAIL + 'mail_activation.html',
+                               {'activation_link': settings.BASE_URL + str(
+                                   reverse('agency:redirect', kwargs={'t': t}))[1:],
+                                'mail_elements': mail_elements})
+        if not mail_sent:
             return StatusCode.BAD_REQUEST.value, None
     except Exception as e:
         LOG.error("Exception: {}".format(str(e)), extra=agency.utils.utils.set_client_ip())
@@ -678,13 +682,14 @@ def resend_mail_activation(request, page, t):
                                                'mail_elements': mail_elements})
 
                     if status_email == StatusCode.OK.value:
+                        messages.success(request, "Mail di attivazione inviata con successo.")
                         LOG.info("{}, {} - Mail di attivazione reinviata".format(request.session.get('username'),
                                                                                  request.POST.get('username_op')),
                                  extra=agency.utils.utils.set_client_ip(request))
 
                     else:
                         LOG.warning("{}, {} - Errore durante l'invio mail di attivazione".format(request.session.get('username'),
-                                                                                 request.POST.get('username_op')),
+                                                                                                 request.POST.get('username_op')),
                                     extra=agency.utils.utils.set_client_ip(request))
 
     except Exception as e:
@@ -705,6 +710,7 @@ def send_mail_psw_operator(request, page, t):
         username = request.POST.get('username_op')
         result = send_recovery_link(username, PageRedirect.CHANGE_PSW.value)
         if result == StatusCode.OK.value:
+            messages.success(request, "Mail per il cambio password inviata con successo.")
             LOG.info("{} - Mail per cambio password inviata".format(username), extra=agency.utils.utils.set_client_ip(request))
         elif result == StatusCode.NOT_FOUND.value:
             LOG.warning("{} - Utente non trovato".format(username), extra=agency.utils.utils.set_client_ip(request))
@@ -718,6 +724,48 @@ def send_mail_psw_operator(request, page, t):
 
     return HttpResponseRedirect(reverse('agency:list_operator', kwargs={'page': page, 't': t}))
 
+
+def test_emailrao(op, rao_name, rao_email, rao_host, rao_pwd, email_crypto_type, email_port, smtp_mail_from=""):
+    """
+    Invia un'email di prova all'indirizzo di posta del Security Officer
+    :param op: operatore (admin) che effettua l'operazione di aggiornamento
+    :param rao_name: nome del Rao
+    :param rao_email: nome di chi invia l'email
+    :param rao_host: host dell'email
+    :param rao_pwd: password dell'email
+    :param email_crypto_type: tipo di Crittografia (Nessuna/TLS/SSL)
+    :param email_port: porta in uscita
+    :param smtp_mail_from: server mail SMTP
+    :return: True/False
+    """
+    try:
+
+
+        password = agency.utils.utils.encrypt_data(rao_pwd, settings.SECRET_KEY_ENC)
+
+        tmp_settings = TempMailSettings(smtp_mail_from, rao_email, rao_host, password=password, email_port=email_port,
+                                        email_crypto_type=email_crypto_type)
+        mail_elements = {
+            'base_url': BASE_URL,
+            'nameUser': op.name,
+            'familyNameUser': op.surname,
+            'rao_name': rao_name,
+            'message': "la configurazione dell'email SMTP scelta è corretta."
+        }
+        mail_sent = send_email([op.email], "Email di prova",
+                               settings.TEMPLATE_URL_MAIL + 'verify_mail_address.html',
+                               {'mail_elements': mail_elements}, conn_settings=tmp_settings)
+        if mail_sent == StatusCode.OK.value:
+            return True
+        else:
+            LOG.error("Errore nell'invio della mail", extra=agency.utils.utils.set_client_ip())
+            return False
+    except Exception as e:
+        ype, value, tb = sys.exc_info()
+        LOG.error("Exception: {}".format(str(e)), extra=agency.utils.utils.set_client_ip())
+        LOG.error('exception_value = %s, value = %s' % (value, type,), extra=agency.utils.utils.set_client_ip())
+        LOG.error('tb = %s' % traceback.format_exception(type, value, tb), extra=agency.utils.utils.set_client_ip())
+    return False
 
 def update_emailrao(op, rao_name, rao_email, rao_host, rao_pwd, email_crypto_type, email_port, smtp_mail_from=""):
     """
@@ -746,7 +794,8 @@ def update_emailrao(op, rao_name, rao_email, rao_host, rao_pwd, email_crypto_typ
                 'base_url': BASE_URL,
                 'nameUser': op.name,
                 'familyNameUser': op.surname,
-                'rao_name': rao_name
+                'rao_name': rao_name,
+                'message': "la configurazione dell'email SMTP è riuscita con successo."
             }
             mail_sent = send_email([op.email], "Email di prova",
                                    settings.TEMPLATE_URL_MAIL + 'verify_mail_address.html',

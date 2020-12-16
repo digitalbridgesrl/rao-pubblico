@@ -102,6 +102,8 @@ class SettingsRAO(models.Model):
     port = models.CharField(verbose_name='Porta SMTP email', max_length=4, null=True)
     crypto = models.CharField(verbose_name='Crittografia', choices=[(tag, tag.value) for tag in CryptoTag],
                               max_length=10, null=True)
+    validationStartDate = models.DateTimeField(verbose_name='Data inizio validazione documenti', null=True)
+    validationEndDate = models.DateTimeField(verbose_name='Data fine validazione documenti', null=True)
 
     class Meta:
         verbose_name = 'SettingsRAO'

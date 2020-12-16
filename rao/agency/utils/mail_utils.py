@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
 import time
-from email.mime.image import MIMEImage
 
 from django.core.mail import get_connection, EmailMessage
 from django.template.loader import render_to_string
@@ -86,6 +85,7 @@ def send_email(to_email, subject, template, data, attachment=None, attachment_na
                 for attach in attachment:
                     with open(settings.DATA_FILES_PATH + attach, 'r') as file:
                         email.attach(attach if not attachment_name else attachment_name, file.read(), 'text/csv')
+
             email.content_subtype = "html"
             email.send()
             LOG.info('[%s] Mail con oggetto "%s" inviata - Connection: %s' % (to_email, subject, conn_label))
@@ -98,3 +98,5 @@ def send_email(to_email, subject, template, data, attachment=None, attachment_na
             return StatusCode.EXC.value
 
     return StatusCode.ERROR.value
+
+

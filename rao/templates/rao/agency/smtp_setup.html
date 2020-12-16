@@ -1,0 +1,129 @@
+{% extends "rao/agency/base.html" %}
+{% load staticfiles %}
+{% block page-content %}
+<main>
+    <div class="container my-4">
+        <div class="row">
+            <div class="float-left mt-2 mb-5">
+                <h3 class="text-center text-primary">Configurazione Server di Posta (SMTP)</h3>
+            </div>
+        </div>
+        <form action="{% url 'agency:smtp_setup' token %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-row ">
+                <div class="form-group col-lg-12">
+                    <input type="text" class="form-control" id="smtpMailFromField"
+                           name="smtpMailFromField"
+                           aria-describedby="smtpMailFromFieldHelp" {% if form_email.smtpMailFromField.value %}
+                           value="{{ form_email.smtpMailFromField.value }}"{% else %} value="{{ params.rao.email }} "   {% endif %}
+                           placeholder="Comune di Catania <indirizzo@mail.it>"
+                           data-container="body" data-toggle="popover" data-trigger="hover"
+                           data-placement="left" data-html="true" title="Campo Da"
+                           data-content="Indirizzo dal quale verranno inviate le email ai cittadini o agli operatori.
+                                   <br> Es. ente@email.com oppure NomeEnte < ente@email.com >">
+                    <label for="smtpMailFromField">Da*</label>
+                    <small id="smtpMailFromFieldHelp"
+                           class="form-text text-danger"> {{ form_email.smtpMailFromField.errors }} </small>
+                </div>
+            </div>
+            <div class="form-row ">
+                <div class="form-group col-lg-6">
+                    <input type="text" class="form-control" id="emailRAOField"
+                           name="emailRAOField"
+                           aria-describedby="emailRAOFieldHelp" {% if form_email.emailRAOField.value %}
+                           value="{{ form_email.emailRAOField.value }}"{% else %} value="{{ params.rao.username }} " {% endif %}
+                           data-container="body" data-toggle="popover" data-trigger="hover"
+                           data-placement="left" data-html="true" title="Username"
+                           data-content="Username associata al tuo account email">
+                    <label for="emailRAOField">Username*</label>
+                    <small id="emailRAOFieldHelp"
+                           class="form-text  text-danger"> {{ form_email.emailRAOField.errors }} </small>
+                </div>
+                <div class="form-group col-lg-6">
+                    <div class="input-group">
+                        <input type="password" autocomplete="new-password"
+                               class="form-control col-12 input-password"
+                               placeholder="Password"
+                               id="pwdRAOField" name="pwdRAOField"
+                               aria-describedby="pwdRAOFieldHelp"
+                               data-container="body" data-toggle="popover" data-trigger="hover"
+                               data-placement="left" data-html="true" title="Password"
+                               data-content="Password per accedere all’indirizzo email riportato su username.">
+                        <span class="password-icon " aria-hidden="true">
+                                                <svg class="password-icon-visible icon icon-sm"><use
+                                                        xlink:href="{% static 'rao/agency/svg/sprite.svg' %}#it-password-visible"></use></svg>
+                                                <svg class="password-icon-invisible icon icon-sm d-none"><use
+                                                        xlink:href="{% static 'rao/agency/svg/sprite.svg' %}#it-password-invisible"></use></svg>
+                                            </span>
+                    </div>
+                    <small id="pwdRAOFieldHelp"
+                           class="form-text text-danger">{{ form_email.pwdRAOField.errors }}</small>
+                </div>
+            </div>
+            <div class="form-row ">
+                <div class="form-group col-lg-6">
+                    <input type="text" class="form-control" id="hostField"
+                           name="hostField"
+                           aria-describedby="hostFieldHelp" {% if form_email.hostField.value %}
+                           value="{{ form_email.hostField.value }}" {% else %} value="{{ params.rao.host }} " {% endif %}
+                           data-container="body" data-toggle="popover" data-trigger="hover"
+                           data-placement="left" data-html="true" title="Host Posta in Uscita (SMTP)"
+                           data-content="Server di posta in uscita.">
+                    <label for="hostField">Host Posta in Uscita (SMTP)*</label>
+                    <small id="hostFieldHelp"
+                           class="form-text  text-danger"> {{ form.hostField.errors }} </small>
+                </div>
+                <div class="form-group col-lg-3">
+                    <input type="text" class="form-control" id="emailPortField"
+                           name="emailPortField"
+                           aria-describedby="emailPortFieldHelp" {% if form_email.emailPortField.value %}
+                           value="{{ form_email.emailPortField.value }}" {% else %} value="{{ params.rao.port }} "  {% endif %}
+                           data-container="body" data-toggle="popover" data-trigger="hover"
+                           data-placement="left" data-html="true" title="Porta in uscita  (SMTP)"
+                           data-content="Porta Server di posta in uscita.">
+                    <label for="emailPortField">Porta in Uscita (SMTP)*</label>
+                    <small id="emailPortFieldHelp"
+                           class="form-text  text-danger"> {{ form_email.emailPortField.errors }} </small>
+                </div>
+                <div class="form-group col-lg-3">
+                    <div class="bootstrap-select-wrapper">
+                        <select id="cryptoMailField" name="cryptoMailField" aria-describedby="cryptoMailFieldHelp">
+                            <option {% if params.rao.crypto == 'NESSUNA' %} selected {% endif %} value="NESSUNA">
+                            NESSUNA
+                            </option>
+                            <option {% if  params.rao.crypto == 'TLS' %} selected {% endif %} value="TLS">
+                            TLS
+                            </option>
+                            <option {% if  params.rao.crypto == 'SSL' %} selected {% endif %} value="SSL">
+                            SSL
+                            </option>
+
+                        </select>
+
+                        <small id="cryptoMailFieldHelp"
+                               class="form-text  text-danger">{{ form_email.cryptoMailField.errors }}</small>
+                    </div>
+                </div>
+
+            </div>
+            <div class="row d-flex justify-content-center pb-5">
+                <input type="submit" class="btn btn-secondary col-sm-4 col-10 " title="test" name="test" value="Invia E-mail di Prova">
+                <input type="submit" class="btn btn-primary col-sm-4 col-10 ml-5" title="Aggiorna" name="update" value="Aggiorna dati">
+            </div>
+        </form>
+    </div>
+</main>
+{% endblock %}
+
+{% block bl_javascripts %}
+<script>
+$(".upload").on("change", function() {
+  var fileName = $(this).val();
+  $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
+});
+
+$(function () {
+  $('[data-toggle="popover"]').popover()
+})
+</script>
+{% endblock %}

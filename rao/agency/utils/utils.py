@@ -395,19 +395,6 @@ def is_admin(username):
         return False
 
 
-def display_alert(alert_type, body_message, link_message=None, link=None):
-    """
-    Genera un messaggio di errore/successo
-    :param alert_type: enum AlertType: info, warning, success o danger
-    :param body_message: testo del messaggio da mostrare
-    :param link_message:
-    :param link:
-    :return: lista di dict con campi 'tags' e 'body'
-    """
-
-    return [{'tags': alert_type.value, 'body': body_message, 'link_message': link_message, 'link': link}]
-
-
 def get_certificate(crt):
     """
     Converte in stringa il certificato in input
@@ -504,6 +491,55 @@ def format_id_card_issuer(id_card_issuer):
     id_card_issuer = id_card_issuer.replace('dell\'', '').replace('d\'', '')
     id_card_issuer = re.sub('\s+', '', id_card_issuer)
     return id_card_issuer[0].lower() + id_card_issuer[1:]
+
+
+def set_validation_period(validation_start_date, validation_end_date, period_flag):
+    """
+    Imposta l'intervallo in cui i documenti scaduti sono ritenuti validi.
+    :param validation_start_date: data iniziale periodo di validità
+    :param validation_end_date: data finale periodo di validità
+    :param period_flag: bool per verificare il periodo di verifica è attivo
+    :return:
+    """
+
+    try:
+        settings_rao = get_attributes_RAO()
+
+        if period_flag:
+            start_date = datetime.datetime.strptime(validation_start_date, '%d/%m/%Y')
+            end_date = datetime.datetime.strptime(validation_end_date, '%d/%m/%Y')
+        else:
+            start_date = None
+            end_date = None
+
+        settings_rao.validationStartDate = start_date
+        settings_rao.validationEndDate = end_date
+        settings_rao.save()
+
+        return StatusCode.OK.value
+    except Exception as e:
+        LOG.warning("Exception: {}".format(str(e)), extra=set_client_ip())
+        return StatusCode.EXC.value
+
+
+def date_in_validation_period(doc_expiration_date):
+    """
+    Verifica che la data di un documento
+    :param doc_expiration_date: Data di scadenza del documento in formato date
+    :return: True/False
+    """
+
+    try:
+        settings_rao = get_attributes_RAO()
+
+        if settings_rao.validationStartDate and settings_rao.validationEndDate:
+            if settings_rao.validationStartDate <= doc_expiration_date <= settings_rao.validationEndDate:
+                return True
+        return False
+
+    except Exception as e:
+        LOG.warning("Exception: {}".format(str(e)), extra=set_client_ip())
+        return False
 
 
 def encrypt_data(payload, passphrase):

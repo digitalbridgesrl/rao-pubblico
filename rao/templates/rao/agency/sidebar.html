@@ -1,12 +1,13 @@
 {% load staticfiles %}
 {% url "agency:dashboard" token as dashboard_link %}
-{% url "agency:appointments" token as appointments_link %}
 {% url "agency:list_identity" 1 token as list_identity_link %}
 {% url "agency:add_identity" token as add_identity_link %}
 {% url "agency:setup" as setup_link %}
 {% url "agency:add_operator" token as add_operator_link %}
 {% url "agency:list_operator" 1 token as list_operator_link %}
-{% url "agency:admin_setup" token as admin_setup_link %}
+{% url "agency:cert_setup" token as cert_setup_link %}
+{% url "agency:smtp_setup" token as smtp_setup_link %}
+{% url "agency:exp_date_setup" token as exp_date_setup_link %}
 
 <div class="sidebar-wrapper">
     <div class="sidebar-linklist-wrapper">
@@ -19,15 +20,15 @@
 
                 {% endif %}
                 <li>
-                    <a class="list-item large medium right-icon {% if request.path == appointments_link or request.path == list_identity_link or request.path == add_identity_link %}active{% endif %}"
+                    <a class="list-item large medium right-icon {% if request.path == list_identity_link or request.path == add_identity_link %}active{% endif %}"
                        href="#collapseFour" data-toggle="collapse"
-                       aria-expanded="{% if request.path == appointments_link or request.path == list_identity_link or request.path == add_identity_link %}true{% else %}false{% endif %}"
+                       aria-expanded="{% if request.path == list_identity_link or request.path == add_identity_link %}true{% else %}false{% endif %}"
                        aria-controls="collapseFour"><span>Identit&aacute; </span>
                         <svg class="icon icon-sm icon-primary right" aria-hidden="true">
                             <use xlink:href="{% static "rao/agency/svg/sprite.svg" %}#it-expand"></use>
                         </svg>
                     </a>
-                    <ul class="link-sublist collapse {% if request.path == appointments_link or request.path == list_identity_link or request.path == add_identity_link %}show{% endif %}"
+                    <ul class="link-sublist collapse {% if request.path == list_identity_link or request.path == add_identity_link %}show{% endif %}"
                         id="collapseFour">
                         <li><a class="list-item {% if request.path == list_identity_link %}active{% endif %}"
                                href="{{ list_identity_link }}"><span>Lista richieste </span></a></li>
@@ -52,8 +53,32 @@
                                href="{{ add_operator_link }}"><span>Nuovo operatore </span></a></li>
                     </ul>
                 </li>
-                <li><a class="list-item large medium {% if request.path == admin_setup_link %}active{% endif %}"
-                       href="{{ admin_setup_link }}"><span>Impostazioni </span></a></li>
+
+                <li>
+                    <a class="list-item large medium right-icon {% if request.path == cert_setup_link or request.path == smtp_setup_link %}active{% endif %}"
+                       href="#collapseSettings" data-toggle="collapse"
+                       aria-expanded="{% if request.path == cert_setup_link or request.path == smtp_setup_link or request.path == exp_date_setup_link %}%true{% else %}false{% endif %}"
+                       aria-controls="collapseFour"><span>Impostazioni </span>
+                        <svg class="icon icon-sm icon-primary right" aria-hidden="true">
+                            <use xlink:href="{% static "rao/agency/svg/sprite.svg" %}#it-expand"></use>
+                        </svg>
+                    </a>
+                    <ul class="link-sublist collapse {% if request.path == cert_setup_link or request.path == smtp_setup_link or request.path == exp_date_setup_link %}show{% endif %}"
+                        id="collapseSettings">
+                        <li><a class="list-item {% if request.path == cert_setup_link %}active{% endif %}"
+                               href="{{ cert_setup_link }}"><span>Sigillo </span></a></li>
+
+                        <li><a class="list-item {% if request.path == smtp_setup_link %}active{% endif %}"
+                               href="{{ smtp_setup_link }}"><span>Server di posta </span></a></li>
+
+                        <li><a class="list-item {% if request.path == exp_date_setup_link %}active{% endif %}"
+                               href="{{ exp_date_setup_link }}"><span>Gestione scadenza documenti </span></a></li>
+
+                    </ul>
+                </li>
+
+
+
 
                 {% endif %}
             </ul>
