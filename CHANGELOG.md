@@ -1,6 +1,19 @@
 # Changelog
 Tutte le modifiche al progetto, nuove funzionalità e informazioni sono documentate in questo file.
 
+## [1.1.0] - 16/12/2020
+
+### Nuove funzionalità
+
+- Pagina "Gestione scadenze documenti" (in Impostazioni): Pannello per la gestione del periodo di validità dei documenti scaduti;
+- Popup informativi che spiegano come popolare le entry dei form;
+- Messaggi informativi di conferma operazioni riguardanti le operazioni del Security Officer sulla pagina "lista operatori".
+
+### Modifiche
+
+- La pagina Impostazioni è stata divisa in "Sigillo" e "Server di Posta" (oltre a "Gestione scadenze documenti").
+- Nuova gestione dei messaggi informativi;
+
 ## [1.0.3] - 03/12/2020
 
 ### Nuove funzionalità
